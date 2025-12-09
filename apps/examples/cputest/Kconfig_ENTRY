@@ -1,0 +1,3 @@
+config ENTRY_CPUTEST
+	bool "\"CPU On and Off test\" example"
+	depends on EXAMPLES_CPUTEST
