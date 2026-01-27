@@ -34,6 +34,21 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+/* For use with EABI and floating point, the stack must be aligned to 8-byte
+ * addresses.
+ */
+
+#ifdef __ARM_EABI__
+#define STACK_ALIGNMENT     8
+#else
+#define STACK_ALIGNMENT     4
+#endif
+
+/* Stack alignment macros */
+
+#define STACK_ALIGN_MASK    (STACK_ALIGNMENT - 1)
+#define STACK_ALIGN_DOWN(a) ((a) & ~STACK_ALIGN_MASK)
+#define STACK_ALIGN_UP(a)   (((a) + STACK_ALIGN_MASK) & ~STACK_ALIGN_MASK)
 
 /****************************************************************************
  * Private Type Declarations
@@ -81,4 +96,35 @@ void sched_checkstackoverflow(FAR struct tcb_s *rtcb)
 
 		leave_critical_section(flags);
 	}
+}
+
+void sched_checkintstackoverflow()
+{
+    uint32_t istackbase;
+#if CONFIG_ARCH_INTERRUPTSTACK > 3
+    istackbase = 0;
+#else
+    istackbase = 0xFFFFFFFF;
+#endif
+
+#if CONFIG_ARCH_INTERRUPTSTACK > 7
+#ifdef CONFIG_SMP
+    /* Initialize istackbase based on the interrupt stack size and proper alignment value (~7) */
+    istackbase = ((uint32_t)arm_intstack_alloc());
+#else
+    istackbase = (uint32_t)&g_intstackalloc;
+#endif
+	istackbase = STACK_ALIGN_UP(istackbase);
+ 
+	if (*(uint32_t *)(istackbase) != INTSTACK_COLOR) {
+		irqstate_t flags = enter_critical_section();
+
+        lldbg_noarg("\n###############    INTERRUPT STACK OVERFLOW ");
+        lldbg_noarg("###################\n");
+        PANIC();
+
+        leave_critical_section(flags);
+
+	}
+#endif
 }

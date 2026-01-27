@@ -125,6 +125,7 @@ bool sched_addreadytorun(FAR struct tcb_s *btcb)
 
 #ifdef CONFIG_SW_STACK_OVERFLOW_DETECTION
 	sched_checkstackoverflow(rtcb);
+	sched_checkintstackoverflow();
 #endif
 	/* Check if pre-emption is disabled for the current running task and if
 	 * the new ready-to-run task would cause the current running task to be
@@ -176,6 +177,7 @@ bool sched_addreadytorun(FAR struct tcb_s *btcb)
 
 #ifdef CONFIG_SW_STACK_OVERFLOW_DETECTION
 	sched_checkstackoverflow(rtcb);
+	sched_checkintstackoverflow();
 #endif
 	/* Check if the blocked TCB is locked to this CPU */
 

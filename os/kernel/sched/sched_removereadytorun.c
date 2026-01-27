@@ -120,6 +120,7 @@ bool sched_removereadytorun(FAR struct tcb_s *rtcb)
 
 #ifdef CONFIG_SW_STACK_OVERFLOW_DETECTION
 	sched_checkstackoverflow(rtcb);
+	sched_checkintstackoverflow();
 #endif
 
 	/* Check if the TCB to be removed is at the head of the ready to run list.
@@ -155,6 +156,7 @@ bool sched_removereadytorun(FAR struct tcb_s *rtcb)
 
 #ifdef CONFIG_SW_STACK_OVERFLOW_DETECTION
 	sched_checkstackoverflow(rtcb);
+	sched_checkintstackoverflow();
 #endif
 
 	/* Which CPU (if any) is the task running on? Which task list holds

@@ -372,6 +372,11 @@ int sched_setpriority(FAR struct tcb_s *tcb, int sched_priority);
 
 #ifdef CONFIG_SW_STACK_OVERFLOW_DETECTION
 void sched_checkstackoverflow(FAR struct tcb_s *rtcb);
+#ifdef CONFIG_ARCH_INTERRUPTSTACK
+void sched_checkintstackoveflow();
+#else
+#define sched_checkintstackoveflow() 
+#endif
 #endif
 
 #ifdef CONFIG_PRIORITY_INHERITANCE
