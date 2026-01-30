@@ -66,6 +66,7 @@
 
 #include "up_arch.h"
 #include "up_internal.h"
+#include "sched/sched.h"
 
 #include "group/group.h"
 
@@ -109,6 +110,36 @@ uint32_t *arm_doirq(int irq, uint32_t *regs)
 	/* Deliver the IRQ */
 
 	irq_dispatch(irq, regs);
+
+    //Check stack overflow here and panic.
+    //IRQ number is already being saved in g_irq_num
+    //up_assert to print relevent information related to assert.
+    //#####################################################################
+    uint32_t istackbase;
+#if CONFIG_ARCH_INTERRUPTSTACK > 3
+    istackbase = 0;
+#else
+    istackbase = 0xFFFFFFFF;
+#endif
+
+#if CONFIG_ARCH_INTERRUPTSTACK > 7
+#ifdef CONFIG_SMP
+    /* Initialize istackbase based on the interrupt stack size and proper alignment value (~7) */
+    istackbase = ((uint32_t)arm_intstack_alloc());
+#else
+    istackbase = (uint32_t)&g_intstackalloc;
+#endif
+    istackbase = STACK_ALIGN_UP(istackbase);
+
+    if (*(uint32_t *)(istackbase) != INTSTACK_COLOR) {
+        //lldbg_noarg("\n###############    INTERRUPT STACK OVERFLOW ");
+        //lldbg_noarg("###################\n");
+        //We may store these lines in a variable, which may then be printied from up_assert
+        //PANIC();
+		DEBUGPANIC_INFO("\n###############    STACK OVERFLOW at IRQ (%d) ###################\n", irq);
+    }
+#endif
+    //#####################################################################
 
 #ifdef CONFIG_ARCH_FPU
 	/* Check for a context switch.  If a context switch occurred, then
