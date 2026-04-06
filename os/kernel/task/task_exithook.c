@@ -64,7 +64,9 @@
 
 #include <tinyara/sched.h>
 #include <tinyara/fs/fs.h>
-
+#if defined(CONFIG_MEM_LEAK_CHECKER) || defined(CONFIG_AUTO_FREE_TASK_MEMORY_ON_EXIT)
+#include <tinyara/mm/mm.h>
+#endif
 #include "sched/sched.h"
 #include "group/group.h"
 #include "signal/signal.h"
@@ -616,6 +618,39 @@ void task_exithook(FAR struct tcb_s *tcb, int status, bool nonblocking)
 
 	task_exitwakeup(tcb, status);
 
+	/* Automatically free memory allocated by this task that has no
+	 * remaining references in the system. Only when nonblocking is false
+	 * (i.e., normal exit via exit(), not _exit()).
+	 */
+#ifdef CONFIG_AUTO_FREE_TASK_MEMORY_ON_EXIT
+	if (!nonblocking) {
+		const char *bin_name = "kernel";
+		
+		/* Skip pthreads for PoC purposes */
+		if ((tcb->flags & TCB_FLAG_TTYPE_MASK) == TCB_FLAG_TTYPE_PTHREAD) {
+			/* Pthreads are excluded from auto-free for PoC */
+		} else {
+			/* Skip idle tasks - In SMP systems, each CPU has its own idle task
+			 * with PID equal to CPU index (0, 1, 2, etc.)
+			 * Check if it's a kernel thread with PID < number of CPUs */
+#ifdef CONFIG_SMP
+			if ((tcb->flags & TCB_FLAG_TTYPE_MASK) == TCB_FLAG_TTYPE_KERNEL && tcb->pid < CONFIG_SMP_NCPUS) {
+				/* Skip idle task */
+			} else {
+#else
+			if (tcb->pid != 0) {
+#endif
+#ifdef CONFIG_APP_BINARY_SEPARATION
+				/* Determine heap name based on where task's stack is allocated */
+				bin_name = mm_get_app_heap_name(tcb->stack_alloc_ptr);
+#endif
+				if (bin_name != NULL) {
+					check_and_free_task_memory(tcb->pid, bin_name);
+				}
+			}
+		}
+	}
+#endif
 	/* If this is the last thread in the group, then flush all streams (File
 	 * descriptors will be closed when the TCB is deallocated).
 	 *

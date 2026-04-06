@@ -819,6 +819,18 @@ void *zalloc_at(int heap_index, size_t size);
 #ifdef CONFIG_MEM_LEAK_CHECKER
 int run_all_mem_leak_checker(int checker_pid);
 #endif
+
+#ifdef CONFIG_AUTO_FREE_TASK_MEMORY_ON_EXIT
+/**
+ * @brief Check and free memory allocated by an exiting task
+ * @details This function identifies memory allocated by the specified PID
+ *   that has no remaining references in the system and frees it automatically.
+ * @param[in] exiting_pid The PID of the exiting task
+ * @param[in] bin_name The binary name (e.g., "kernel", "app1") to determine which heap to check
+ * @return OK on success, ERROR on failure
+ */
+int check_and_free_task_memory(pid_t exiting_pid, const char *bin_name);
+#endif
 /**
  * @brief Free the memory from specified user heap.
  * @details @b #include <tinyara/mm/mm.h>\n

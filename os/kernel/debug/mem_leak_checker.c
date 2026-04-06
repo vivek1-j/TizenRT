@@ -32,6 +32,7 @@
 #include <arch/chip/memory_region.h>
 #include <tinyara/binfmt/elf.h>
 
+#include "sched/sched.h"
 #include "binary_manager/binary_manager_internal.h"
 
 /****************************************************************************
@@ -423,7 +424,7 @@ int run_mem_leak_checker(int checker_pid, char *bin_name)
 	}
 
 	if (hash_init() != OK) {
-		printf("hash table memory alloc is failed.\n");
+		printf("hash table initialization failed.\n");
 		return ERROR;
 	}
 
@@ -474,3 +475,308 @@ int run_all_mem_leak_checker(int checker_pid)
 #endif
 	return OK;
 }
+
+#ifdef CONFIG_AUTO_FREE_TASK_MEMORY_ON_EXIT
+
+/****************************************************************************
+ * Name: fill_hash_table_for_pid
+ *
+ * Description:
+ *   Fill hash table with allocated nodes matching the specified PID
+ *
+ ****************************************************************************/
+
+static int fill_hash_table_for_pid(struct mm_heap_s *heap, pid_t target_pid, int *leak_cnt)
+{
+	volatile struct mm_allocnode_s *node;
+	mmsize_t node_size;
+	node_size = SIZEOF_MM_ALLOCNODE;
+
+#if CONFIG_KMM_REGIONS > 1
+	int region;
+#else
+#define region 0
+#endif
+
+	/* Visit each region */
+
+#if CONFIG_KMM_REGIONS > 1
+	for (region = 0; region < heap->mm_nregions; region++)
+#endif
+	{
+		node_size = SIZEOF_MM_ALLOCNODE;
+		for (node = heap->mm_heapstart[region]; node < heap->mm_heapend[region]; node = (struct mm_allocnode_s *)((char *)node + node->size)) {
+			ASSERT(node->size);
+			/* Ignore the heap start checking, because there is a guard node in heap start */
+			if (node == heap->mm_heapstart[region]) {
+				continue;
+			}
+
+			/* Check broken link */
+			if (node_size != MM_PREV_NODE_SIZE(node)) {
+				continue;
+			}
+			node_size = node->size;
+			if ((unsigned long)node + (unsigned long)SIZEOF_MM_ALLOCNODE == (unsigned long)g_node_info || 
+					(unsigned long)node + (unsigned long)SIZEOF_MM_ALLOCNODE == (unsigned long)g_hash_table) {
+				continue;
+			}
+			/* Check if the node corresponds to an allocated memory chunk */
+			if ((node->preceding & MM_ALLOC_BIT) != 0) {
+				/* Only include nodes matching the target PID */
+				pid_t node_pid = node->pid;
+				if (node_pid < 0) {
+					node_pid = (-1) * node_pid; /* Convert negative stack PID to positive */
+				}
+				
+				if (node_pid == target_pid) {
+					g_node_info[*leak_cnt].node = node;
+					g_node_info[*leak_cnt].next = NULL;
+					node->reserved = MEM_LEAK;
+					add_hash(*leak_cnt);
+					(*leak_cnt)++;
+				}
+			}
+		}
+	}
+	
+	return OK;
+}
+
+/****************************************************************************
+ * Name: search_task_stack
+ *
+ * Description:
+ *   Helper function for sched_foreach to search task stacks
+ *
+ ****************************************************************************/
+
+static void search_task_stack(FAR struct tcb_s *tcb, FAR void *arg)
+{
+	struct task_memcheck_context_s {
+		pid_t exiting_pid;
+		int *leak_cnt;
+	} *ctx = (struct task_memcheck_context_s *)arg;
+	
+	/* Skip exiting task's stack */
+	if (tcb->pid == ctx->exiting_pid) {
+		return;
+	}
+	
+	/* Search this task's stack */
+	void *stack_top = tcb->adj_stack_ptr;
+	void *stack_bottom = tcb->adj_stack_ptr - tcb->adj_stack_size;
+	search_addr(stack_bottom, stack_top, ctx->leak_cnt);
+}
+
+/****************************************************************************
+ * Name: free_leaks_for_pid
+ *
+ * Description:
+ *   Free all allocated nodes marked as leaks (no references found)
+ *
+ ****************************************************************************/
+
+static int free_leaks_for_pid(struct mm_heap_s *heap, int *leak_cnt)
+{
+	volatile struct mm_allocnode_s *node;
+	int freed_count = 0;
+	size_t freed_bytes = 0;
+	mmsize_t node_size;
+	node_size = SIZEOF_MM_ALLOCNODE;
+
+#if CONFIG_KMM_REGIONS > 1
+	int region;
+#else
+#define region 0
+#endif
+
+	/* Visit each region */
+
+#if CONFIG_KMM_REGIONS > 1
+	for (region = 0; region < heap->mm_nregions; region++)
+#endif
+	{
+		node_size = SIZEOF_MM_ALLOCNODE;
+		for (node = heap->mm_heapstart[region]; node < heap->mm_heapend[region]; node = (struct mm_allocnode_s *)((char *)node + node->size)) {
+			ASSERT(node->size);
+			if (node == heap->mm_heapstart[region]) {
+				continue;
+			}
+
+			if (node_size != MM_PREV_NODE_SIZE(node)) {
+				continue;
+			}
+			node_size = node->size;
+			
+			/* Free nodes still marked as leak (no references found) */
+			if (node->reserved == MEM_LEAK) {
+				void *mem_to_free = (void *)((char *)node + SIZEOF_MM_ALLOCNODE);
+				size_t mem_size = node->size - SIZEOF_MM_ALLOCNODE;
+				
+				mm_free(heap, mem_to_free);
+				freed_count++;
+				freed_bytes += mem_size;
+				(*leak_cnt)--;
+			}
+		}
+	}
+
+	if (freed_count > 0) {
+		printf("[PID %d] Freed %d allocations (%zu bytes)\n", 
+		       heap == g_kmmheap ? -1 : 0, freed_count, freed_bytes);
+	}
+
+	return OK;
+}
+
+/****************************************************************************
+ * Name: check_and_free_task_memory
+ *
+ * Description:
+ *   Check for and free memory allocated by an exiting task that has no
+ *   remaining references in the system.
+ *
+ ****************************************************************************/
+
+int check_and_free_task_memory(pid_t exiting_pid, const char *bin_name)
+{
+	int leak_cnt = 0;
+	struct mm_heap_s *heap = NULL;
+
+	if (!bin_name) {
+		printf("Error: bin_name is NULL\n");
+		return ERROR;
+	}
+
+	/* Determine which heap to check */
+	if (strncmp(bin_name, "kernel", strlen("kernel") + 1) == 0) {
+		heap = kmm_get_baseheap();
+	} 
+#ifdef CONFIG_APP_BINARY_SEPARATION
+	else {
+		heap = mm_get_app_heap_with_name((char *)bin_name);
+	}
+#endif
+
+	if (!heap) {
+		printf("Error: Cannot find heap for bin_name: %s\n", bin_name);
+		return ERROR;
+	}
+
+	/* Verify heap is actually ready/initialized */
+#if CONFIG_KMM_REGIONS > 1
+	if (heap->mm_nregions == 0) {
+		printf("[PID %d] Skipping - heap has no regions\n", exiting_pid);
+		return ERROR;
+	}
+#endif
+
+	if (!heap->mm_heapstart[0] || !heap->mm_heapend[0]) {
+		printf("[PID %d] Skipping - heap region 0 not initialized\n", exiting_pid);
+		return ERROR;
+	}
+
+	/* Initialize hash table */
+	if (hash_init() != OK) {
+		/* Memory allocation failed - likely during early system boot
+		 * Skip memory cleanup to avoid system crash
+		 */
+		printf("Warning: Hash table initialization failed - skipping memory cleanup for PID %d\n", exiting_pid);
+		return ERROR;
+	}
+
+	/* Fill hash table with allocations matching the PID */
+	fill_hash_table_for_pid(heap, exiting_pid, &leak_cnt);
+
+	if (leak_cnt == 0) {
+		printf("[PID %d] No allocated memory found in %s heap\n", exiting_pid, bin_name);
+		hash_deinit();
+		return OK;
+	}
+
+	/* Check for references in all stacks (excluding exiting task's stack) */
+	struct tcb_s *tcb;
+	void *exclude_top = NULL;
+	void *exclude_bottom = NULL;
+	
+	/* Get exiting task's stack info to exclude from search */
+	tcb = sched_gettcb(exiting_pid);
+	if (tcb) {
+		exclude_top = tcb->adj_stack_ptr;
+		exclude_bottom = tcb->adj_stack_ptr - tcb->adj_stack_size;
+	}
+
+	/* Search all task stacks for references */
+	mm_takesemaphore(heap);
+	
+	sched_lock();
+	
+	/* Setup context for stack search */
+	struct task_memcheck_context_s {
+		pid_t exiting_pid;
+		int *leak_cnt;
+	} g_task_memcheck_context;
+	
+	g_task_memcheck_context.exiting_pid = exiting_pid;
+	g_task_memcheck_context.leak_cnt = &leak_cnt;
+	
+	/* Iterate through all tasks and search their stacks */
+	sched_foreach(search_task_stack, &g_task_memcheck_context);
+	
+	sched_unlock();
+
+	/* Search data regions */
+	int mem_region_idx;
+	for (mem_region_idx = 0; mem_region_idx < MEM_VAR_REGION_COUNT; mem_region_idx++) {
+		search_addr(variable_region_start_addr[mem_region_idx], 
+		          variable_region_end_addr[mem_region_idx], &leak_cnt);
+	}
+
+#ifdef CONFIG_APP_BINARY_SEPARATION
+	/* Search app data regions if applicable */
+	bin_addr_info_t *info;
+	int bin_idx;
+	info = (bin_addr_info_t *)get_bin_addr_list();
+	
+	if (info) {
+		for (bin_idx = 0; bin_idx <= CONFIG_NUM_APPS; bin_idx++) {
+			if (info[bin_idx].data_addr != 0) {
+				search_addr((void *)info[bin_idx].data_addr, 
+				          (void *)(info[bin_idx].data_addr + info[bin_idx].data_size), 
+				          &leak_cnt);
+			}
+			if (info[bin_idx].bss_addr != 0) {
+				search_addr((void *)info[bin_idx].bss_addr, 
+				          (void *)(info[bin_idx].bss_addr + info[bin_idx].bss_size), 
+				          &leak_cnt);
+			}
+		}
+	}
+#endif
+
+	mm_givesemaphore(heap);
+
+	/* Search heap region for pointers */
+	heap_check(heap, exiting_pid, &leak_cnt);
+
+#ifdef CONFIG_APP_BINARY_SEPARATION
+	/* If checking app memory, also search kernel heap */
+	if (strncmp(bin_name, "kernel", strlen("kernel") + 1) != 0) {
+		struct mm_heap_s *kheap = kmm_get_baseheap();
+		if (kheap) {
+			heap_check(kheap, exiting_pid, &leak_cnt);
+		}
+	}
+#endif
+
+	/* Free all allocations still marked as leaks */
+	free_leaks_for_pid(heap, &leak_cnt);
+
+	/* Cleanup hash table */
+	hash_deinit();
+
+	return OK;
+}
+
+#endif /* CONFIG_AUTO_FREE_TASK_MEMORY_ON_EXIT */

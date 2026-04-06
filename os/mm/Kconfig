@@ -135,3 +135,67 @@ config MM_DUMP_CORRPUTED_HEAP
 		When we find a heap corruption, we can dump the entire heap, so that
 		it can be manually analyzed to find more information about the corruption.
 
+config DEBUG_MM_ALLOC_CSV
+	bool "Debug Memory Allocation CSV Output"
+	default n
+	depends on DEBUG_MM
+	---help---
+		Enable CSV format logging of memory allocations.
+		Outputs: MM_ALLOC,<requested>,<allocated>,<chunk>,<remainder>,<split_flag>
+		Useful for analyzing allocation patterns in Excel or other tools.
+
+config MEM_LEAK_CHECKER
+	bool "Enable Memory Leak Checker"
+	default n
+	depends on DEBUG_MM_HEAPINFO
+	---help---
+		Enable manual memory leak detection and reporting tool.
+		Provides commands to check all heaps for memory leaks.
+		Requires DEBUG_MM_HEAPINFO to track allocation information (PID, caller address).
+
+config MEM_LEAK_CHECKER_INTERNAL
+	bool
+	---help---
+		Internal helper for memory leak checking infrastructure.
+		Automatically selected by features that need the hash table
+		and reference checking logic (MEM_LEAK_CHECKER or AUTO_FREE_TASK_MEMORY_ON_EXIT).
+
+config MEM_LEAK_CHECKER_HASH_TABLE_SIZE
+	int "Memory Leak Checker Hash Table Size"
+	default 1007
+	depends on MEM_LEAK_CHECKER_INTERNAL
+	---help---
+		Size of hash table used for memory leak detection.
+		Should be a prime number for better distribution.
+		Increase if you expect many allocations.
+
+config MEM_LEAK_CHECKER_MAX_ALLOC_COUNT
+	int "Memory Leak Checker Max Allocations"
+	default 3000
+	depends on MEM_LEAK_CHECKER_INTERNAL
+	---help---
+		Maximum number of allocations to track simultaneously.
+		If exceeded, the checker will report an error.
+		Increase this if you have tasks with many allocations.
+
+config AUTO_FREE_TASK_MEMORY_ON_EXIT
+	bool "Auto-free task memory on exit"
+	depends on DEBUG_MM_HEAPINFO
+	select MEM_LEAK_CHECKER_INTERNAL
+	default n
+	---help---
+		Automatically detect and free memory allocated by a task when it exits,
+		if there are no remaining references to that memory.
+		
+		This reuses the reference checking logic from the memory leak checker
+		but operates automatically during task exit instead of manual invocation.
+		
+		When a task exits (via exit(), not _exit()), this feature will:
+		1. Scan all heaps for allocations with the task's PID
+		2. Check if there are any remaining references in the system
+		3. Free allocations with no references
+		4. Report statistics (count and bytes freed)
+		
+		WARNING: This will free memory even if it was intentionally left allocated.
+		Only enable for development/testing environments.
+
