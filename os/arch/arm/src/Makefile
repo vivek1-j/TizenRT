@@ -104,6 +104,10 @@ else
   CFLAGS += -I$(ARCH_SRCDIR)/common
   CFLAGS += -I$(ARCH_SRCDIR)/$(ARCH_SUBDIR)
   CFLAGS += -I$(TOPDIR)/kernel
+  ASFLAGS += -I$(ARCH_SRCDIR)/chip
+  ASFLAGS += -I$(ARCH_SRCDIR)/common
+  ASFLAGS += -I$(ARCH_SRCDIR)/$(ARCH_SUBDIR)
+  ASFLAGS += -I$(TOPDIR)/include
 endif
 endif
 

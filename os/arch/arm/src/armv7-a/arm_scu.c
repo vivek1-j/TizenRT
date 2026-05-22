@@ -43,6 +43,8 @@
 
 #include <stdint.h>
 
+#include "chip.h"
+#include "up_arch.h"
 #include "up_internal.h"
 #include "cp15_cacheops.h"
 #include "barriers.h"

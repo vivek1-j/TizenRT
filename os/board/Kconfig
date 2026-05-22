@@ -182,7 +182,13 @@ config ARCH_BOARD_SABRE_6QUAD
 	select ARCH_BUTTONS
 	select ARCH_HAVE_IRQBUTTONS
 	select ARCH_HAVE_RAM_KERNEL_TEXT
- 
+
+config ARCH_BOARD_QEMU_ARMV7A
+	bool "QEMU ARMv7-A Virtual Platform"
+	depends on ARCH_CHIP_QEMUARM
+	---help---
+		QEMU virt machine with Cortex-A7 CPU.
+
 endchoice
 
 config ARCH_BOARD_ARTIK05X_FAMILY
@@ -210,7 +216,8 @@ config ARCH_BOARD
 	default "rtl8730e"           if ARCH_BOARD_RTL8730E
 	default "rtl8721csm"         if ARCH_BOARD_RTL8721CSM
 	default "stm32h745zi-nucleo" if ARCH_BOARD_STM32H745ZI_NUCLEO
-	default "sabre-6quad"	     if ARCH_BOARD_SABRE_6QUAD	
+	default "sabre-6quad"	     if ARCH_BOARD_SABRE_6QUAD
+	default "qemu-armv7a"        if ARCH_BOARD_QEMU_ARMV7A
 comment "Common Board Options"
 
 config ARCH_HAVE_LEDS
@@ -404,6 +411,9 @@ source board/rtl8721csm/Kconfig
 endif
 if ARCH_BOARD_STM32H745ZI_NUCLEO
 source board/stm32h745zi-nucleo/Kconfig
+endif
+if ARCH_BOARD_QEMU_ARMV7A
+source board/qemu-armv7a/Kconfig
 endif
 
 source board/common/Kconfig

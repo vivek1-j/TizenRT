@@ -115,7 +115,8 @@ static int tash_history(int argc, char **argv);
  ****************************************************************************/
 
 static int is_sorted_list = FALSE;
-static struct tash_cmd_info_s tash_cmds_info = {PTHREAD_MUTEX_INITIALIZER};
+/* Zero-initialize entire struct - guaranteed by C standard */
+static struct tash_cmd_info_s tash_cmds_info = {0};
 
 const static tash_cmdlist_t tash_basic_cmds[] = {
 	{"exit",  tash_exit,   TASH_EXECMD_SYNC},
@@ -694,7 +695,8 @@ int tash_cmd_install(const char *str, TASH_CMD_CALLBACK cb, int thread_exec)
 	pthread_mutex_lock(&tash_cmds_info.tmutex);
 
 	/* allocate memory for new cmd */
-	if (tash_cmds_info.count == 0) {
+	/* Check cmd pointer instead of count for reliability */
+	if (tash_cmds_info.cmd == NULL) {
 		new_cmd_buff = (struct tash_cmd_s *)malloc(sizeof(struct tash_cmd_s));
 	} else {
 		/* Is it new  */

@@ -44,6 +44,7 @@
 #include <stdint.h>
 #include <debug.h>
 
+#include "up_arch.h"
 #include "up_internal.h"
 #include "gic.h"
 

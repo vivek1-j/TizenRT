@@ -56,6 +56,9 @@ ARCH_FAMILY = $(patsubst "%",%,$(CONFIG_ARCH_FAMILY))
 include ${TOPDIR}/arch/$(CONFIG_ARCH)/src/$(ARCH_FAMILY)/Toolchain.defs
 
 # Choose proper ld script
+ifeq ($(CONFIG_ARCH_CORTEXA7),y)
+LDSCRIPT = armv7a.ld
+else
 ifeq ($(CONFIG_QEMU_SRAM),y)
 LDSCRIPT = flash-sram-qemu-memory-increased.ld  #Qemu SRAM increased
 else
@@ -65,7 +68,7 @@ else
 LDSCRIPT = flash-sram.ld
 endif
 endif
-
+endif
 ifeq ($(WINTOOL),y)
   # Windows-native toolchains
   DIRLINK = $(TOPDIR)/tools/copydir.sh
@@ -159,6 +162,7 @@ LIBEXT = .a
 EXEEXT =
 
 LDFLAGS += -nostartfiles -nodefaultlibs
+#CXXFLAGS += -nostartfiles -nodefaultlibs
 ifeq ($(CONFIG_DEBUG_SYMBOLS),y)
   LDFLAGS += -g
 endif

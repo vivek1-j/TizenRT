@@ -422,9 +422,13 @@ static ssize_t uart_write(FAR struct file *filep, FAR const char *buffer, size_t
 	/* We may receive console writes through this path from interrupt handlers and
 	 * from debug output in the IDLE task!  In these cases, we will need to do things
 	 * a little differently.
+	 *
+	 * NOTE: For QEMU PL011 UART, the TX interrupt doesn't fire when the FIFO is idle.
+	 * So we must use the direct up_putc() path for console output to ensure data
+	 * is transmitted immediately.
 	 */
 
-	if (up_interrupt_context() || getpid() == 0) {
+	if (up_interrupt_context() || getpid() == 0 || dev->isconsole) {
 #ifdef CONFIG_SERIAL_REMOVABLE
 		/* If the removable device is no longer connected, refuse to write to
 		 * the device.

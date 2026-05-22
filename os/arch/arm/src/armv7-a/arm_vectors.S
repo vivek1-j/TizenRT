@@ -237,8 +237,9 @@ arm_vectorirq:
 
 #if CONFIG_ARCH_INTERRUPTSTACK > 7
 	/* Call arm_decodeirq() on the interrupt stack */
-
+#if !defined(CONFIG_SMP) && CONFIG_ARCH_INTERRUPTSTACK > 7
 	setirqstack	r1, r3				/* SP = interrupt stack top */
+#endif
 	str		r0, [sp, #-4]!			/* Save the xcp address at SP-4 then update SP */
 	mov		r4, sp				/* Save the SP in a preserved register */
 	bic		sp, sp, #7			/* Force 8-byte alignment */
@@ -368,8 +369,9 @@ arm_vectorsvc:
 
 #if CONFIG_ARCH_INTERRUPTSTACK > 7
 	/* Call arm_syscall() on the interrupt stack */
-
+#if !defined(CONFIG_SMP) && CONFIG_ARCH_INTERRUPTSTACK > 7
 	setirqstack	r1, r3				/* SP = interrupt stack top */
+#endif
 	str		r0, [sp, #-4]!			/* Save the xcp address at SP-4 then update SP */
 	mov		r4, sp				/* Save the SP in a preserved register */
 	bic		sp, sp, #7			/* Force 8-byte alignment */

@@ -1,0 +1,12 @@
+#
+# For a description of the syntax of this configuration file,
+# see kconfig-language at https://www.kernel.org/doc/Documentation/kbuild/kconfig-language.txt
+#
+
+if ARCH_BOARD_QEMU_ARMV7A
+
+config ARCH_BOARD_QEMU_ARMV7A
+	bool
+	default y
+
+endif

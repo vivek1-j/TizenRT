@@ -53,7 +53,9 @@ static inline void wd_dump(struct wdog_s *wdog)
 
 void wd_corruption_dbg(struct wdog_s *wdog)
 {
+#ifdef CONFIG_DEBUG_MM_HEAPINFO
 	uint32_t wd_node;
+#endif
 	lldbg("WDOG INFO\n");
 	wd_dump(wdog);
 

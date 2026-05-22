@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright 2016 Samsung Electronics All Rights Reserved.
+ * Copyright 2024 Samsung Electronics All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,10 @@
  * language governing permissions and limitations under the License.
  *
  ****************************************************************************/
-/****************************************************************************
- * arch/arm/include/syscall.h
+/************************************************************************************
+ * arch/arm/src/qemu/qemu_irq.h
  *
- *   Copyright (C) 2011 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2010 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -48,64 +48,70 @@
  * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- ****************************************************************************/
+ ************************************************************************************/
 
-/* This file should never be included directed but, rather, only indirectly
- * through include/syscall.h or include/sys/sycall.h
+#ifndef __ARCH_ARM_SRC_QEMU_QEMU_IRQ_H
+#define __ARCH_ARM_SRC_QEMU_QEMU_IRQ_H
+
+/************************************************************************************
+ * Included Files
+ ************************************************************************************/
+
+#include <tinyara/config.h>
+
+/************************************************************************************
+ * Pre-processor Definitions
+ ************************************************************************************/
+
+/* IRQ numbers for the QEMU virt platform with Cortex-A7.
+ *
+ * The chip-specific IRQ numbers are defined in the public header
+ * <arch/chip/irq.h> which is symlinked to arch/arm/include/qemu/irq.h.
+ * They are also re-exported here for convenience in the chip driver.
+ *
+ * GIC IRQ layout:
+ *   0-15:  SGIs (Software Generated Interrupts)
+ *   16-31: PPIs (Private Peripheral Interrupts) per CPU
+ *   32+:   SPIs (Shared Peripheral Interrupts)
+ *
+ * For Cortex-A7, the Generic Timer PPI mapping:
+ *   Physical Timer (Non-Secure): PPI 14 = IRQ 30
  */
 
-#ifndef __ARCH_ARM_INCLUDE_SYSCALL_H
-#define __ARCH_ARM_INCLUDE_SYSCALL_H
+/* PL011 UART (SPI 1 = IRQ 33) */
 
-/****************************************************************************
- * Included Files
- ****************************************************************************/
+#define IRQ_UART1               (32 + 1)    /* IRQ 33 */
 
-/* Include ARM architecture-specific syscall macros */
-#if defined(CONFIG_ARCH_CORTEXM3) || defined(CONFIG_ARCH_CORTEXM4) || defined(CONFIG_ARCH_CORTEXM7)
-#include <arch/armv7-m/syscall.h>
-#elif defined(CONFIG_ARCH_CORTEXR4) || defined(CONFIG_ARCH_CORTEXR4F)
-#include <arch/armv7-r/syscall.h>
-#elif defined(CONFIG_ARCH_CORTEXM33) || defined(CONFIG_ARCH_CORTEXM55)
-#include <arch/armv8-m/syscall.h>
-#elif defined(CONFIG_ARCH_CORTEXA9) || defined(CONFIG_ARCH_CORTEXA32) || defined(CONFIG_ARCH_CORTEXA7)
-#include <arch/armv7-a/syscall.h>
-#else
-#include <arch/arm/syscall.h>
-#endif
+/* ARM Generic Timer (CNTP) - PPI 14 = IRQ 30 */
 
-/****************************************************************************
- * Definitions
- ****************************************************************************/
+#define IRQ_CNTP                (16 + 14)   /* IRQ 30 */
 
-/****************************************************************************
- * Public Types
- ****************************************************************************/
-
-/****************************************************************************
- * Inline functions
- ****************************************************************************/
-
-/****************************************************************************
- * Public Variables
- ****************************************************************************/
-
-/****************************************************************************
- * Public Function Prototypes
- ****************************************************************************/
+/************************************************************************************
+ * Public Functions
+ ************************************************************************************/
 
 #ifndef __ASSEMBLY__
 #ifdef __cplusplus
 #define EXTERN extern "C"
-extern "C" {
+extern "C"
+{
 #else
 #define EXTERN extern
 #endif
+
+/************************************************************************************
+ * Name: qemu_irq_initialize
+ *
+ * Description:
+ *   Initialize the IRQ subsystem for the QEMU virt platform.
+ *
+ ************************************************************************************/
+
+void qemu_irq_initialize(void);
 
 #undef EXTERN
 #ifdef __cplusplus
 }
 #endif
-#endif
-
-#endif							/* __ARCH_ARM_INCLUDE_SYSCALL_H */
+#endif /* __ASSEMBLY__ */
+#endif /* __ARCH_ARM_SRC_QEMU_QEMU_IRQ_H */

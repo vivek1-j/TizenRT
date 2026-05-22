@@ -1,0 +1,34 @@
+#
+# For a description of the syntax of this configuration file,
+# see kconfig-language at https://www.kernel.org/doc/Documentation/kbuild/kconfig-language.txt
+#
+
+comment "QEMU ARMv7-A Configuration Options"
+
+config QEMU_HAVE_PL011
+	bool
+	default y
+	---help---
+		Selected by the configuration tool if the architecture supports
+		the ARM PL011 UART
+
+config QEMU_PL011_BASE
+	hex "PL011 UART Base Address"
+	default 0x09000000
+	depends on ARCH_CHIP_QEMUARM
+	---help---
+		The base address of the PL011 UART used for serial console.
+
+config QEMU_PL011_IRQ
+	int "PL011 UART IRQ"
+	default 33
+	depends on ARCH_CHIP_QEMUARM
+	---help---
+		The IRQ number for the PL011 UART (SPI 1 = 32 + 1).
+
+config QEMU_HAVE_GICv2
+	bool
+	default y
+	select ARMV7A_HAVE_GICv2
+	---help---
+		QEMU virt platform provides a GICv2 interrupt controller.

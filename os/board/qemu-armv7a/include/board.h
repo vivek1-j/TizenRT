@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- * Copyright 2016 Samsung Electronics All Rights Reserved.
+ * Copyright 2024 Samsung Electronics All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,10 @@
  * language governing permissions and limitations under the License.
  *
  ****************************************************************************/
-/****************************************************************************
- * arch/arm/include/syscall.h
+/************************************************************************************
+ * board/qemu-armv7a/include/board.h
  *
- *   Copyright (C) 2011 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2010 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -48,64 +48,59 @@
  * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- ****************************************************************************/
+ ************************************************************************************/
 
-/* This file should never be included directed but, rather, only indirectly
- * through include/syscall.h or include/sys/sycall.h
- */
+#ifndef __BOARD_QEMU_ARMV7A_INCLUDE_BOARD_H
+#define __BOARD_QEMU_ARMV7A_INCLUDE_BOARD_H
 
-#ifndef __ARCH_ARM_INCLUDE_SYSCALL_H
-#define __ARCH_ARM_INCLUDE_SYSCALL_H
-
-/****************************************************************************
+/************************************************************************************
  * Included Files
- ****************************************************************************/
+ ************************************************************************************/
 
-/* Include ARM architecture-specific syscall macros */
-#if defined(CONFIG_ARCH_CORTEXM3) || defined(CONFIG_ARCH_CORTEXM4) || defined(CONFIG_ARCH_CORTEXM7)
-#include <arch/armv7-m/syscall.h>
-#elif defined(CONFIG_ARCH_CORTEXR4) || defined(CONFIG_ARCH_CORTEXR4F)
-#include <arch/armv7-r/syscall.h>
-#elif defined(CONFIG_ARCH_CORTEXM33) || defined(CONFIG_ARCH_CORTEXM55)
-#include <arch/armv8-m/syscall.h>
-#elif defined(CONFIG_ARCH_CORTEXA9) || defined(CONFIG_ARCH_CORTEXA32) || defined(CONFIG_ARCH_CORTEXA7)
-#include <arch/armv7-a/syscall.h>
-#else
-#include <arch/arm/syscall.h>
-#endif
+#include <tinyara/config.h>
 
-/****************************************************************************
- * Definitions
- ****************************************************************************/
+/************************************************************************************
+ * Pre-processor Definitions
+ ************************************************************************************/
 
-/****************************************************************************
- * Public Types
- ****************************************************************************/
+/* Clocking */
 
-/****************************************************************************
- * Inline functions
- ****************************************************************************/
+#define BOARD_CLOCK_FREQUENCY     24000000   /* 24 MHz generic timer clock */
 
-/****************************************************************************
- * Public Variables
- ****************************************************************************/
+/* LED definitions (no LEDs on QEMU virt platform) */
 
-/****************************************************************************
- * Public Function Prototypes
- ****************************************************************************/
+#define LED_STARTED                0
+#define LED_HEAPALLOCATE           1
+#define LED_IRQSENABLED            2
+#define LED_STACKCREATED           3
+#define LED_INIRQ                  4
+#define LED_SIGNAL                 5
+#define LED_ASSERTION              6
+#define LED_PANIC                  7
+
+/************************************************************************************
+ * Public Data
+ ************************************************************************************/
 
 #ifndef __ASSEMBLY__
-#ifdef __cplusplus
+
+#undef EXTERN
+#if defined(__cplusplus)
 #define EXTERN extern "C"
-extern "C" {
+extern "C"
+{
 #else
 #define EXTERN extern
 #endif
 
+/************************************************************************************
+ * Public Function Prototypes
+ ************************************************************************************/
+
 #undef EXTERN
-#ifdef __cplusplus
+#if defined(__cplusplus)
 }
 #endif
-#endif
 
-#endif							/* __ARCH_ARM_INCLUDE_SYSCALL_H */
+#endif /* __ASSEMBLY__ */
+#endif /* __BOARD_QEMU_ARMV7A_INCLUDE_BOARD_H */

@@ -460,7 +460,7 @@ __start:
 #else
 	.long	MMU_MEMFLAGS				/* MMU flags for text section in RAM */
 #endif
-#ifdef CONFIG_ARCH_CHIP_QEMU_A32
+#if defined(CONFIG_ARCH_CHIP_QEMUARM) || defined(CONFIG_ARCH_CHIP_QEMU_A32)
 	.long	_textlen				/* Number of 1MB read-execute sections */
 #else
 	.long	(TIZENRT_TEXT_SIZE >> 20)			/* Number of 1MB read-execute sections */

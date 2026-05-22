@@ -56,6 +56,8 @@
 #include <fcntl.h>
 #if defined(CONFIG_CDCACM_CONSOLE)
 #include <tinyara/usb/cdcacm.h>
+#else
+#include <unistd.h>
 #endif
 #include "tash_internal.h"
 
@@ -165,6 +167,23 @@ int tash_init(void)
 #if defined(CONFIG_CDCACM_CONSOLE)
 	if (tash_nonftdi_usbconinit() != 0) {
 		ret = ERROR;
+	}
+#else
+	/* For all other targets (including QEMU), open /dev/console */
+	{
+		int fd;
+		fd = open("/dev/console", O_RDWR);
+		if (fd >= 0) {
+			(void)dup2(fd, 0);	/* stdin */
+			(void)dup2(fd, 1);	/* stdout */
+			(void)dup2(fd, 2);	/* stderr */
+			(void)fdopen(0, "r");
+			(void)fdopen(1, "a");
+			(void)fdopen(2, "a");
+			if (fd > 2) {
+				close(fd);
+			}
+		}
 	}
 #endif
 

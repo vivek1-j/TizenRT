@@ -805,6 +805,7 @@ void os_start(void)
 	g_os_initstate = OSINIT_HARDWARE;
 
 	/* Initialize stdio for the IDLE task of each CPU */
+	/* Note: Console is registered in up_serialinit() called via board_initialize() */
 
 	for (i = 0; i < CONFIG_SMP_NCPUS; i++)
 	{
