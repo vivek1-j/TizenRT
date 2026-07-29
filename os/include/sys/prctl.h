@@ -130,12 +130,15 @@ enum prctl_type_e {
 	PR_UNSET_PREFERENCE_CB,
 	PR_MEM_LEAK_CHECKER,
 	PR_REBOOT_REASON_READ,
+
 	PR_REBOOT_REASON_WRITE,
 	PR_REBOOT_REASON_CLEAR,
 	PR_SET_SECURITY_LEVEL,
 	PR_GET_SECURITY_LEVEL,
-	PR_GET_TGTASK
+	PR_GET_TGTASK,
+	PR_MEM_LEAK_CHECKER_V2
 };
+
 
 /****************************************************************************
  * Public Type Definitions

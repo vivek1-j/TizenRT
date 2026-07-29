@@ -832,6 +832,13 @@ void *zalloc_at(int heap_index, size_t size);
 #ifdef CONFIG_MEM_LEAK_CHECKER
 int run_all_mem_leak_checker(int checker_pid);
 #endif
+
+#ifdef CONFIG_MEM_LEAK_CHECKER_V2
+int run_all_mem_leak_checker_v2(int checker_pid, int filter_pid, const char *heap_name);
+
+
+#endif
+
 /**
  * @brief Free the memory from specified user heap.
  * @details @b #include <tinyara/mm/mm.h>\n
