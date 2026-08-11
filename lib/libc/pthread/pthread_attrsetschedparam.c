@@ -63,6 +63,8 @@
 #include <debug.h>
 #include <errno.h>
 
+/* SCHED_PRIORITY_MIN and SCHED_PRIORITY_MAX are defined in sys/types.h */
+
 /****************************************************************************
  * Definitions
  ****************************************************************************/
@@ -110,6 +112,9 @@ int pthread_attr_setschedparam(FAR pthread_attr_t *attr, FAR const struct sched_
 	svdbg("attr=0x%p param=0x%p\n", attr, param);
 
 	if (!attr || !param) {
+		ret = EINVAL;
+	} else if (param->sched_priority < SCHED_PRIORITY_MIN ||
+		   param->sched_priority > SCHED_PRIORITY_MAX) {
 		ret = EINVAL;
 	} else {
 		attr->priority = (short)param->sched_priority;
