@@ -288,6 +288,9 @@ int pthread_cond_timedwait(FAR pthread_cond_t *cond, FAR pthread_mutex_t *mutex,
 
 						wd_start(rtcb->waitdog, ticks, (wdentry_t)pthread_condtimedout, 2, (uint32_t)mypid, (uint32_t)SIGCONDTIMEDOUT);
 
+						/* Increment the waiter count */
+						cond->waiters++;
+
 						/* Take the condition semaphore.  Do not restore interrupts
 						 * until we return from the wait.  This is necessary to
 						 * make sure that the watchdog timer and the condition wait
@@ -299,12 +302,25 @@ int pthread_cond_timedwait(FAR pthread_cond_t *cond, FAR pthread_mutex_t *mutex,
 						/* Did we get the condition semaphore. */
 
 						if (status != OK) {
+							/* sem_wait failed */
+							if (cond->waiters > 0) {
+								cond->waiters--;
+							}
+
 							/* NO.. Handle the special case where the semaphore wait was
 							 * awakened by the receipt of a signal -- presumably the
 							 * signal posted by pthread_condtimedout().
 							 */
-
 							if (get_errno() == EINTR) {
+								/* If a concurrent signal/broadcast gave the semaphore
+								* after timeout already restored semcount via
+								* sem_waitirq(), there will be a leftover semcount.
+								* Consume it to prevent spurious wakeup on next wait.
+								*/
+								if (cond->sem.semcount > 0) {
+									cond->sem.semcount--;
+								}
+
 								sdbg("Timedout!\n");
 								ret = ETIMEDOUT;
 							} else {

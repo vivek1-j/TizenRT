@@ -215,6 +215,15 @@ static int adam110_send_cmd(FAR struct adam110_dev_s *dev, uint8_t op,
 #define ADAM110_SET_MIC_GAIN(dev, gain, rx_ptr) \
     adam110_send_cmd(dev, AUD_PDM_SET_GAIN, (uint8_t)(gain), 0, 0, 0, rx_ptr, false)
 
+#define ADAM110_SET_MIC_CLK(dev, conf, rx_ptr) \
+    adam110_send_cmd(dev, AUD_PDM_SET_CLK, (uint8_t)(conf), 0, 0, 0, rx_ptr, false)
+
+#define ADAM110_SET_DEBUG(dev, enable, rx_ptr) \
+    adam110_send_cmd(dev, AUD_SET_DEBUG_MODE, (uint8_t)(enable), 0, 0, 0, rx_ptr, false)
+
+#define ADAM110_SET_MIC_DEBUG(dev, mode, rx_ptr) \
+    adam110_send_cmd(dev, AUD_SET_MIC_DEBUG_MODE, (uint8_t)mode, 0, 0, 0, rx_ptr, false)
+
 #define ADAM110_AI_UPDATE_START(dev, rx_ptr) \
     adam110_send_cmd(dev, AC_UPDATE_MODEL, 0, 0, 0, 0, rx_ptr, false)
 
@@ -440,15 +449,8 @@ static int adam110_send_model(FAR struct adam110_dev_s *dev)
 			return -EIO;
 		}
 
-		uint8_t p1, p2;
-		if (nread == ADAM110_MODEL_CHUNK_SIZE) {
-			p1 = 0x01;
-			p2 = 0x00;
-		} else {
-			uint16_t actual_len = (uint16_t)(nread);
-			p1 = (uint8_t)((actual_len >> 8) & 0xFF);
-			p2 = (uint8_t)(actual_len & 0xFF);
-		}
+		uint8_t p1 = (uint8_t)((nread >> 8) & 0xFF);
+		uint8_t p2 = (uint8_t)(nread & 0xFF);
 
 		retry_remain = ADAM110_MODEL_RETRY_CNT;
 		while (retry_remain > 0) {
@@ -456,19 +458,19 @@ static int adam110_send_model(FAR struct adam110_dev_s *dev)
 			if (ret != OK) {
 				retry_remain--;
 				if (ret == -EPIPE) {
-					up_udelay(ADAM110_TXRX_DELAY * 150);
+					up_udelay(ADAM110_TXRX_DELAY * 100);
 				} else {
 					auddbg("[E] model xmit failed ret:%d\n", ret);
 				}
 				continue;
 			}
 
-				chunk_buf[nread] = adam110_calculate_checksum(chunk_buf, nread);
-				adam110_spi_exchange(dev, chunk_buf, nread + 1, NULL, 0, false);
-				sent_size += nread;
-				up_udelay(ADAM110_COM_RES_DELAY);
-				break;
-		}
+            chunk_buf[nread] = adam110_calculate_checksum(chunk_buf, nread);
+            adam110_spi_exchange(dev, chunk_buf, nread + 1, NULL, 0, false);
+            sent_size += nread;
+            up_udelay(ADAM110_COM_RES_DELAY);
+            break;
+        }
 		if (ret != OK) {
 			close(fd);
 			return ret;
@@ -476,12 +478,22 @@ static int adam110_send_model(FAR struct adam110_dev_s *dev)
 	}
 	close(fd);
 
+	/* A 10 ms delay is required for audio buffer initialization. */
 	up_udelay(10*1000);
 
 	ret = ADAM110_AI_UPDATE_RSLT(dev, &rxpkt);
 	if (ret != OK) {
 		auddbg("[E] Model update result failed.\n");
 		return ret;
+	}
+
+	/* Reconfigure the debug mode using the previous settings after an ADAM110 reset. */
+	if (dev->dsp_flow != 0) {
+		ret = ADAM110_SET_MIC_DEBUG(dev, (uint8_t)dev->dsp_flow, &rxpkt);
+		if (ret != OK) {
+			auddbg("Disable debug mode failed\n");
+			return ret;
+		}
 	}
 
 	ret = ADAM110_SET_MIC_GAIN(dev, dev->mic_gain, &rxpkt);
@@ -611,18 +623,18 @@ static int adam110_send_firmware(FAR struct adam110_dev_s *dev)
 
 		up_udelay(ADAM110_FW_UPDATE_WAITTIME);
 
-			memset(chunk_buf, 0xff, sizeof(chunk_buf));
-			chunk_buf[0] = PKT_HEADER_SEND;
-			chunk_buf[1] = FW_GET_UPDATE_DATA;
-			nread = read(fd, &chunk_buf[ADAM110_FW_DATA_HEADER], ADAM110_FW_CHUNK_SIZE);
-	        if (nread < 0) {
-				auddbg("[E] File read error.\n");
-	            ret = -EIO;
-				goto errout_with_fd;
-			}
-			adam110_spi_exchange(dev, chunk_buf, ADAM110_FW_CHUNK_SIZE + ADAM110_FW_DATA_HEADER, NULL, 0, false); /* must send 130byte (under 128byte need padding) */
-			sent_size += nread;
-			up_udelay(ADAM110_FW_WRITE_WAITTIME);
+		memset(chunk_buf, 0xff, sizeof(chunk_buf));
+		chunk_buf[0] = PKT_HEADER_SEND;
+		chunk_buf[1] = FW_GET_UPDATE_DATA;
+		nread = read(fd, &chunk_buf[ADAM110_FW_DATA_HEADER], ADAM110_FW_CHUNK_SIZE);
+		if (nread < 0) {
+			auddbg("[E] File read error.\n");
+			ret = -EIO;
+			goto errout_with_fd;
+		}
+		adam110_spi_exchange(dev, chunk_buf, ADAM110_FW_CHUNK_SIZE + ADAM110_FW_DATA_HEADER, NULL, 0, false); /* must send 130byte (under 128byte need padding) */
+		sent_size += nread;
+		up_udelay(ADAM110_FW_WRITE_WAITTIME);
 	}
 
 	/* checsum */
@@ -720,6 +732,7 @@ static void adam110_takesem(sem_t *sem)
 static int adam110_load_firmware(FAR struct adam110_dev_s *priv)
 {
 	int ret = OK;
+	t_proto_pkt rxpkt;
 
 	priv->fw_loaded = false;
 	auddbg("start set firmware!!\n");
@@ -736,11 +749,26 @@ static int adam110_load_firmware(FAR struct adam110_dev_s *priv)
 	priv->lower->reset();
 	up_udelay(ADAM110_HW_RST_WAIT);
 
+	/* PDM Clock configuration*/
+	ret = ADAM110_SET_MIC_CLK(priv, PDM_CLOCK_PDM_RATE, &rxpkt);
+	if (ret != 0) {
+		auddbg("Adam110 PDM clock %s Hz failed ret : %d\n",(PDM_CLOCK_PDM_RATE?"1Mhz":"2Mhz") ,ret);
+		return ret;
+	} else {
+		auddbg("Set Adam110 PDM clock %s Hz : %d\n",(PDM_CLOCK_PDM_RATE?"1Mhz":"2Mhz"), ret);
+	}
+
 	ret = ADAM110_SET_MODEL(priv);
 	if (ret != OK) {
 	    auddbg("[E] Model send fail!\n");
 	} else {
 		priv->lower->irq_enable(true);
+	}
+
+	//enable AI_MODEL_CUSTOM1 interrupt
+	ret = ADAM110_AI_SET_INTR(priv, AI_MODEL_CUSTOM1, true, &rxpkt);
+	if (ret != OK) {
+		auddbg("Enable new KD failed. kd_num : %d\n", priv->kd_num);
 	}
 errout:
 	/* Regardless result, set fw_loaded as true for next check */
@@ -829,8 +857,7 @@ static int adam110_process_event(FAR struct adam110_dev_s *priv)
 	audvdbg("parm2 = 0x%x\n", rxpkt.parm2);
 
 	/* TODO if it is invalid event, should we return OK here? */
-
-	if (rxpkt.parm1 == AI_MODEL_HIBIXBY || rxpkt.parm1 == AI_MODEL_BIXBY) {
+	if (rxpkt.parm1 & ((1U << WWD_MODEL_MAX) - 1U)) {
 		if (!priv->kd_enabled || priv->recording) {
 			auddbg("It's not possible to handle kd kd_enabled : %d recording : %d\n", priv->kd_enabled, priv->recording);
 			goto out_unlock;
@@ -880,8 +907,8 @@ static int adam110_process_event(FAR struct adam110_dev_s *priv)
 			}
 		}
 
-		adam110_givesem(&priv->devsem);
-		priv->lower->irq_enable(true);
+        adam110_givesem(&priv->devsem);
+        priv->lower->irq_enable(true);
         return OK;
 	}
 	if (rxpkt.parm2 != AI_DATA_TYPE_AUDIO) {
@@ -1290,7 +1317,13 @@ static int adam110_configure(FAR struct audio_lowerhalf_s *dev, FAR const struct
 			 * ADAM110 (Low/Mid/High)
 			 */
 			adam110_takesem(&priv->devsem);
-			ADAM110_AI_SET_THD(priv, priv->kd_num, (sensitivity >> 8) & 0xff, sensitivity & 0xff, &rxpkt);
+
+			/* 1:Hi bixby, 2:Bixby, 3:Alexa, 4:WWD_CUSTOM_MODEL1 */
+			if (priv->kd_num >= WWD_CUSTOM_MODEL1) {
+				sensitivity = (uint16_t)(((uint32_t)sensitivity * 32768) / 1000);				
+			}			
+			ADAM110_AI_SET_THD(priv, priv->kd_num + 1, (sensitivity >> 8) & 0xff, sensitivity & 0xff, &rxpkt);
+
 			priv->sensitivity = sensitivity;
 			adam110_givesem(&priv->devsem);
 		}
@@ -1400,7 +1433,6 @@ static int adam110_start(FAR struct audio_lowerhalf_s *dev)
 	priv->recording = true;
 
 	ADAM110_SET_INTR(priv, AI_INTR_TYPE_AUDIO, true, &rxpkt);
-
 	adam110_givesem(&priv->devsem);
 	return 0;
 }
@@ -1631,7 +1663,9 @@ static int adam110_ioctl(FAR struct audio_lowerhalf_s *dev, int cmd, unsigned lo
 		case AUDIO_SD_AEC: {
 #ifdef CONFIG_AUDIO_ADAM110_AEC_SUPPORT
 			/* aec_enable function */
-			ADAM110_SET_AEC(priv, true, &rxpkt);
+			if (priv->dsp_flow == 0) {
+				ADAM110_SET_AEC(priv, true, &rxpkt);
+			}
 #endif
 		}
 		break;
@@ -1690,31 +1724,27 @@ static int adam110_ioctl(FAR struct audio_lowerhalf_s *dev, int cmd, unsigned lo
 	}
 	break;
 	case AUDIOIOC_CHANGEKD: {
-		uint8_t kd_num;
-		if (((arg & AUDIO_NN_MODEL_MASK) > AUDIO_NN_MODEL_MAX) ||
-				((arg & AUDIO_NN_MODEL_LANG_MASK) > AUDIO_NN_MODEL_LANG_MAX)) {
+		uint8_t kd_num = (uint8_t)(arg & WWD_MODEL_MAX);
+
+		/* Valid WWD model range: 0 ~ WWD_MODEL_MAX - 1 */
+		if (kd_num >= WWD_MODEL_MAX) {
 			return -EINVAL;
 		}
 
-		if (arg > 2) {
-			return -EINVAL;
-		}
-
-		kd_num = (uint8_t)arg;
+		/*
+		* AUDIO_NN_MODEL_HI_BIXBY : 0 -> AI_MODEL_HIBIXBY : 1
+		* AUDIO_NN_MODEL_BIXBY    : 1 -> AI_MODEL_BIXBY   : 2
+		*/
+		kd_num += 1;
 		audvdbg("kd_num : %d priv->kd_num : %d\n", kd_num, priv->kd_num);
-
-		if (kd_num == AUDIO_NN_MODEL_HI_BIXBY) {
-			kd_num = AI_MODEL_HIBIXBY;
-		} else if (kd_num == AUDIO_NN_MODEL_BIXBY) {
-			kd_num = AI_MODEL_BIXBY;
-		}else {
-			return -EINVAL;
-		}
+		
 		adam110_takesem(&priv->devsem);
+				
 		if (priv->running) {
 			ret = -EBUSY;
     		goto out_unlock;
 		}
+
 		if (kd_num == priv->kd_num) {
 			audvdbg("already loaded, ignore change kd. kd_num : %d\n", priv->kd_num);
 			ret = OK;
@@ -1737,8 +1767,8 @@ static int adam110_ioctl(FAR struct audio_lowerhalf_s *dev, int cmd, unsigned lo
 			goto out_unlock;
 		}
 
-		/* Firmware loaded, then disable interrupt of currently loaded model first */
-		if (priv->kd_num == AI_MODEL_HIBIXBY || priv->kd_num == AI_MODEL_BIXBY) {
+		/* Disable the interrupt for the currently selected AI model. */
+		if ((priv->kd_num >= AI_MODEL_HIBIXBY) && (priv->kd_num < AI_MODEL_MAX)) {
 			ret = ADAM110_AI_SET_INTR(priv, (priv->kd_num), false, &rxpkt);
 			if (ret != OK) {
 				auddbg("Disable old KD failed. kd_num : %d ret : %d\n", priv->kd_num, ret);
@@ -1752,12 +1782,28 @@ static int adam110_ioctl(FAR struct audio_lowerhalf_s *dev, int cmd, unsigned lo
 		ret = ADAM110_AI_SET_INTR(priv, (priv->kd_num), true, &rxpkt);
 		if (ret != OK) {
 			auddbg("Enable new KD failed. kd_num : %d\n", priv->kd_num);
-		}			
+			goto out_unlock;
+		}
+
+		/* Enable the custom model interrupt. */
+		ret = ADAM110_AI_SET_INTR(priv, AI_MODEL_CUSTOM1, true, &rxpkt);
+		if (ret != OK) {
+			auddbg("Enable new KD failed. kd_num : %d\n", priv->kd_num);
+		}
 	out_unlock:
 		adam110_givesem(&priv->devsem);
 		return ret;
 	}
 	break;
+	case AUDIOIOC_CHANGEDSPFLOW: {
+		uint8_t dsp_flow_num = (uint8_t)arg;
+		ret = adam110_change_dsp_flow(priv, dsp_flow_num);
+		if (ret != 0) {
+			auddbg("adam110_change_dsp_flow failed ret : %d\n", ret);
+			return ret;
+		}
+		break;
+	}
 	default:
 		audvdbg("[I] adam110_ioctl received unknown cmd 0x%x\n", cmd);
 		ret = -EINVAL;
@@ -1976,3 +2022,53 @@ err_with_priv:
 	return NULL;
 }
 
+/* adam110_change_dsp_flow*/
+int adam110_change_dsp_flow(FAR struct adam110_dev_s *priv, int flow)
+{
+	int ret = OK;
+	t_proto_pkt rxpkt;
+
+	if (flow < 0 || flow > 2) {
+		auddbg("Invalid DSP flow : %d\n", flow);
+		return -EINVAL;
+	}
+
+	adam110_takesem(&priv->devsem);
+
+	if (priv->recording) {
+		auddbg("Cannot change DSP flow while recording. flow=%d current=%d\n", flow, priv->dsp_flow);
+		ret = -EBUSY;
+		goto errout;
+	}
+
+	if (flow == priv->dsp_flow) {
+		auddbg("DSP flow is already applied. flow=%d current=%d\n", flow, priv->dsp_flow);
+		adam110_givesem(&priv->devsem);
+		return OK;
+	}
+
+	if (flow == 0) {
+		ret = ADAM110_SET_AEC(priv, false, &rxpkt);
+		if (ret != OK) {
+			auddbg("Disable AEC failed : %d\n", ret);
+			goto errout;
+		}	
+		ret = ADAM110_SET_MIC_DEBUG(priv, MIC_DEBUG_MODE_OFF, &rxpkt);
+		if (ret != OK) {
+			auddbg("Disable debug mode failed\n");
+			goto errout;
+		}
+	} else {
+		ret = ADAM110_SET_MIC_DEBUG(priv, (uint8_t)flow, &rxpkt);
+		if (ret != OK) {
+			auddbg("Disable debug mode failed\n");
+			goto errout;
+		}
+	}
+	
+	priv->dsp_flow = (uint8_t)flow;
+
+errout:
+	adam110_givesem(&priv->devsem);
+	return ret;
+}
