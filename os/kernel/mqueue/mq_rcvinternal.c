@@ -131,7 +131,7 @@ int mq_verifyreceive(mqd_t mqdes, FAR char *msg, size_t msglen)
 	}
 
 	if ((mqdes->oflags & O_RDOK) == 0) {
-		set_errno(EPERM);
+		set_errno(EBADF);
 		return ERROR;
 	}
 

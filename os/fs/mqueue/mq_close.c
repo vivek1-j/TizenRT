@@ -56,6 +56,7 @@
 
 #include <tinyara/config.h>
 
+#include <errno.h>
 #include <sched.h>
 #include <mqueue.h>
 #include <assert.h>
@@ -136,6 +137,7 @@ int mq_close_group(mqd_t mqdes, FAR struct task_group_s *group)
 			mq_inode_release(inode);
 		} else {
 			dbg("ERROR: mqdes(%x) is not in this thread's group.\n", mqdes);
+			set_errno(EBADF);
 			ret = ERROR;
 		}
 		sched_unlock();

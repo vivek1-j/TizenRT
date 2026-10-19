@@ -164,6 +164,11 @@ int mq_notify(mqd_t mqdes, const struct sigevent *notification)
 	/* Get a pointer to the message queue */
 
 	msgq = mqdes->msgq;
+	if (!msgq) {
+		set_errno(EBADF);
+		leave_critical_section(flags);
+		return ERROR;
+	}
 
 	/* Get the current process ID */
 

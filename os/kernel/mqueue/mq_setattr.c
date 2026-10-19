@@ -56,6 +56,7 @@
 
 #include <tinyara/config.h>
 
+#include <errno.h>
 #include <fcntl.h>				/* O_NONBLOCK */
 #include <mqueue.h>
 
@@ -114,18 +115,26 @@ int mq_setattr(mqd_t mqdes, const struct mq_attr *mq_stat, struct mq_attr *oldst
 {
 	int ret = ERROR;
 
-	if (mqdes && mq_stat) {
-		/* Return the attributes if so requested */
-
-		if (oldstat) {
-			(void)mq_getattr(mqdes, oldstat);
-		}
-
-		/* Set the new value of the O_NONBLOCK flag. */
-
-		mqdes->oflags = ((mq_stat->mq_flags & O_NONBLOCK) | (mqdes->oflags & (~O_NONBLOCK)));
-		ret = OK;
+	if (!mqdes) {
+		set_errno(EBADF);
+		return ERROR;
 	}
+
+	if (!mq_stat) {
+		set_errno(EINVAL);
+		return ERROR;
+	}
+
+	/* Return the attributes if so requested */
+
+	if (oldstat) {
+		(void)mq_getattr(mqdes, oldstat);
+	}
+
+	/* Set the new value of the O_NONBLOCK flag. */
+
+	mqdes->oflags = ((mq_stat->mq_flags & O_NONBLOCK) | (mqdes->oflags & (~O_NONBLOCK)));
+	ret = OK;
 
 	return ret;
 }

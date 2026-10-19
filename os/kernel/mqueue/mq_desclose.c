@@ -57,6 +57,7 @@
 #include <tinyara/config.h>
 
 #include <mqueue.h>
+#include <string.h>
 #include <sched.h>
 #include <assert.h>
 #include <queue.h>
@@ -152,6 +153,10 @@ void mq_desclose_group(mqd_t mqdes, FAR struct task_group_s *group)
 #endif
 
 	/* Deallocate the message descriptor */
+
+
+	/* Clear the message descriptor to invalidate it */
+	memset(mqdes, 0, sizeof(struct mq_des));
 
 	mq_desfree(mqdes);
 }

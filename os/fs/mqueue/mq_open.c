@@ -185,6 +185,15 @@ mqd_t mq_open(FAR const char *mq_name, int oflags, ...)
 		attr = va_arg(ap, FAR struct mq_attr *);
 		va_end(ap);
 
+		/* Validate message queue attributes if provided */
+
+		if (attr) {
+			if (attr->mq_maxmsg <= 0 || attr->mq_msgsize <= 0) {
+				errcode = EINVAL;
+				goto errout_with_lock;
+			}
+		}
+
 		/* Create an inode in the pseudo-filesystem at this path */
 
 		inode_semtake();
