@@ -86,6 +86,10 @@ bool nxsched_remove_readytorun(FAR struct tcb_s *rtcb)
 
 	tasklist = TLIST_HEAD(rtcb);
 
+#ifdef CONFIG_SW_STACK_OVERFLOW_DETECTION
+	sched_checkstackoverflow(rtcb);
+#endif
+
 	/* Check if the TCB to be removed is at the head of the ready to run list.
 	 * There is only one list, g_readytorun, and it always contains the
 	 * currently running task.  If we are removing the head of this list,
@@ -163,6 +167,10 @@ static void nxsched_remove_running(FAR struct tcb_s *tcb)
 	            tcb->task_state == TSTATE_TASK_RUNNING);
 
 	cpu = tcb->cpu;
+
+#ifdef CONFIG_SW_STACK_OVERFLOW_DETECTION
+	sched_checkstackoverflow(tcb);
+#endif
 
 	/* Next task will be the idle task */
 

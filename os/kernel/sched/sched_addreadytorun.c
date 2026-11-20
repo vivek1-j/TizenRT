@@ -88,6 +88,10 @@ bool nxsched_add_readytorun(FAR struct tcb_s *btcb)
 	FAR struct tcb_s *rtcb = this_task();
 	bool ret;
 
+#ifdef CONFIG_SW_STACK_OVERFLOW_DETECTION
+	sched_checkstackoverflow(rtcb);
+#endif
+
 	/* Check if pre-emption is disabled for the current running task and if
 	 * the new ready-to-run task would cause the current running task to be
 	 * preempted.  NOTE that IRQs disabled implies that pre-emption is
@@ -262,6 +266,10 @@ bool nxsched_add_readytorun(FAR struct tcb_s *btcb)
 	int target_cpu = btcb->flags & TCB_FLAG_CPU_LOCKED ? btcb->cpu :
 	  nxsched_select_cpu(btcb->affinity);
 	FAR struct tcb_s *tcb = current_task(target_cpu);
+
+#ifdef CONFIG_SW_STACK_OVERFLOW_DETECTION
+	sched_checkstackoverflow(tcb);
+#endif
 
 	/* Add the btcb to the ready to run list, and try to run it on the target
 	 * CPU

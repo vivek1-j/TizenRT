@@ -55,6 +55,10 @@ ifneq ($(CONFIG_STACKCHECK_MARGIN),)
   endif
 endif
 
+ifeq ($(CONFIG_SW_STACK_OVERFLOW_DETECTION),y)
+CSRCS += sched_checkstackoverflow.c
+endif
+
 ifeq ($(CONFIG_PRIORITY_INHERITANCE),y)
 CSRCS += sched_reprioritize.c
 endif

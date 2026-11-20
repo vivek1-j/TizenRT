@@ -357,6 +357,11 @@ void up_idle(void);
 
 void up_initial_state(FAR struct tcb_s *tcb);
 
+#ifdef CONFIG_SW_STACK_OVERFLOW_DETECTION
+void up_checkstackoverflow(FAR struct tcb_s *rtcb);
+#endif
+
+
 /****************************************************************************
  * Name: up_create_stack
  *

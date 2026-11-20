@@ -421,6 +421,11 @@ void nxsched_checkstackoverflow(FAR struct tcb_s *tcb);
 #  define nxsched_checkstackoverflow(tcb)
 #endif
 
+#ifdef CONFIG_SW_STACK_OVERFLOW_DETECTION
+void sched_checkstackoverflow(FAR struct tcb_s *rtcb);
+#endif
+
+
 #ifdef CONFIG_SMP
 bool nxsched_switch_running(int cpu, bool switch_equal);
 void nxsched_process_delivered(int cpu);
