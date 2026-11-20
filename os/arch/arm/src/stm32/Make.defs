@@ -270,3 +270,7 @@ endif
 ifeq ($(CONFIG_STM32_CORDIC),y)
 CHIP_CSRCS += stm32_cordic.c
 endif
+
+ifeq ($(CONFIG_SW_STACK_OVERFLOW_DETECTION),y)
+  CMN_CSRCS += up_checkstackoverflow.c
+endif

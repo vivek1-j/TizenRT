@@ -71,6 +71,10 @@ ifeq ($(CONFIG_ARMV8M_STACKCHECK),y)
   CMN_CSRCS += arm_stackcheck.c
 endif
 
+ifeq ($(CONFIG_SW_STACK_OVERFLOW_DETECTION),y)
+  CMN_CSRCS += up_checkstackoverflow.c
+endif
+
 ifeq ($(CONFIG_ARCH_FPU),y)
   CMN_CSRCS += arm_fpuconfig.c
   CMN_CSRCS += arm_fpucmp.c

@@ -152,3 +152,7 @@ VPATH += chip/cc13xx
 else ifeq ($(CONFIG_ARCH_CHIP_CC13X2),y)
 VPATH += chip/cc13xx
 endif
+
+ifeq ($(CONFIG_SW_STACK_OVERFLOW_DETECTION),y)
+  CMN_CSRCS += up_checkstackoverflow.c
+endif

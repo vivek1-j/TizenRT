@@ -157,3 +157,7 @@ else
 CHIP_CSRCS += imxrt_adc_ver1.c
 endif
 endif
+
+ifeq ($(CONFIG_SW_STACK_OVERFLOW_DETECTION),y)
+  CMN_CSRCS += up_checkstackoverflow.c
+endif

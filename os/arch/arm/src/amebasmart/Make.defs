@@ -179,3 +179,7 @@ EXTRA_LIBS += $(TOPDIR)/board/rtl8730e/src/libs/lib_wpa_lite.a
 EXTRA_LIBS += $(TOPDIR)/board/rtl8730e/src/libs/lib_wifi_common.a
 endif
 endif
+
+ifeq ($(CONFIG_SW_STACK_OVERFLOW_DETECTION),y)
+  CMN_CSRCS += up_checkstackoverflow.c
+endif
